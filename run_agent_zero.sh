@@ -12,6 +12,9 @@ set -e
 # since they are architecture-independent data files.
 # ---------------------------------------------------------------------------
 
+# Remove any stopped container with the same name (e.g. after a reboot)
+docker rm -f agent-zero 2>/dev/null || true
+
 docker run -d \
   -p 50001:80 \
   -v ~/agent-zero-data:/a0/usr \
@@ -149,10 +152,35 @@ docker exec agent-zero bash -c "
     echo 'Creating skills-venv...'
     python3 -m venv /a0/usr/skills-venv
     /a0/usr/skills-venv/bin/pip install --quiet --upgrade pip
-    /a0/usr/skills-venv/bin/pip install --quiet ezdxf svgwrite reportlab
+    /a0/usr/skills-venv/bin/pip install --quiet ezdxf svgwrite reportlab fastmcp
     echo 'skills-venv created.'
   else
-    echo 'skills-venv already exists, skipping.'
+    echo 'skills-venv already exists.'
+    # Ensure fastmcp is present for pcb-pipeline MCP server
+    /a0/usr/skills-venv/bin/pip install --quiet fastmcp
+  fi
+"
+
+# ---------------------------------------------------------------------------
+# Copy pcb-pipeline MCP server scripts to tools directory if missing.
+# Source: /a0/usr/skills/pcb-pipeline/ (skills dir on the volume)
+# Dest:   /a0/usr/tools/pcb-pipeline/
+# This ensures the server is available after a fresh volume setup without
+# needing to re-run install_pcb_pipeline.sh manually.
+# ---------------------------------------------------------------------------
+docker exec agent-zero bash -c "
+  DEST=/a0/usr/tools/pcb-pipeline
+  SRC=/a0/usr/skills/pcb-pipeline
+  if [ ! -f \"\$DEST/pcb_pipeline_mcp.py\" ]; then
+    if [ -f \"\$SRC/pcb_pipeline_mcp.py\" ]; then
+      mkdir -p \"\$DEST\"
+      cp \"\$SRC\"/*.py \"\$DEST\"/
+      echo 'pcb-pipeline scripts copied to /a0/usr/tools/pcb-pipeline/'
+    else
+      echo 'WARNING: pcb-pipeline scripts not found — run install_pcb_pipeline.sh from the host'
+    fi
+  else
+    echo 'pcb-pipeline scripts already in place.'
   fi
 "
 
