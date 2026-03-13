@@ -1,0 +1,5 @@
+{
+  "title": "PCB DRC/DFM Agent",
+  "description": "Runs Design Rule Check and Design-for-Manufacture scripts, parses logs, and proposes or applies automated fixes. Iterates until DRC is clean.",
+  "context": "Uses kicad-run-drc skill. DRC violations returned as JSON; fix minor clearance/silkscreen issues automatically, escalate complex issues to orchestrator."
+}

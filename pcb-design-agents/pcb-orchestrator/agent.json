@@ -1,0 +1,5 @@
+{
+  "title": "PCB Orchestrator",
+  "description": "Top-level PCB design orchestrator. Plans the full workflow and delegates tasks to specialized sub-agents. Use this as the entry-point agent for any PCB design request.",
+  "context": "Orchestrates: pcb-requirements → pcb-schematic → pcb-layout → pcb-drc-dfm → pcb-export. Use pcb-vision-parts for image/datasheet analysis, pcb-quality for final sign-off."
+}

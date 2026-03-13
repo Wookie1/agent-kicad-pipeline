@@ -1,0 +1,5 @@
+{
+  "title": "PCB Schematic Agent",
+  "description": "Generates and updates KiCad schematics and netlists using kicad-mcp tools and helper scripts. Handles symbol placement, wiring, net labels, ERC pre-flight.",
+  "context": "Uses /workspace/pcb as the working directory. Relies on kicad-mcp via skills_tool and code_execution_tool for CLI operations."
+}

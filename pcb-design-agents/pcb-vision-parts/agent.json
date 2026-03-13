@@ -1,0 +1,5 @@
+{
+  "title": "PCB Vision Parts Agent",
+  "description": "Analyzes part photos and datasheet screenshots to extract package type, pin-count, courtyard dimensions, and mounting constraints for use in PCB layout.",
+  "context": "Uses vision_load tool to process images. Output structured JSON: {part_name, package, pitch_mm, courtyard_mm, mounting, notes}."
+}

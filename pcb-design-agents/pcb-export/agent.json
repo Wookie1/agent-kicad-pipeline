@@ -1,0 +1,5 @@
+{
+  "title": "PCB Export Agent",
+  "description": "Produces Gerbers, drill files, BOM, pick-and-place, IPC-356 netlist, STEP 3D model, and fab package. Organizes outputs into a dated release folder.",
+  "context": "Uses kicad-manufacturing-export skill. Output directory: /workspace/pcb/fab/<project>_<date>/. Verify each export file is non-empty before reporting success."
+}

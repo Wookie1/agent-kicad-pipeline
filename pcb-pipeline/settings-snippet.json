@@ -1,0 +1,49 @@
+{
+  "_comment": "This file shows the full mcp_servers JSON block to use in ~/agent-zero-data/settings.json",
+  "_instructions": [
+    "1. Open ~/agent-zero-data/settings.json",
+    "2. Find the 'mcp_servers' key",
+    "3. Replace the entire JSON string value with the 'mcp_servers_value' below",
+    "   (remember: in settings.json the value must be a JSON-encoded STRING, i.e. the",
+    "    inner JSON is escaped with backslashes as it already is in settings.json)",
+    "4. Restart the Agent Zero container (or reload settings in the UI)"
+  ],
+  "mcp_servers_value": {
+    "mcpServers": {
+      "blender": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["blender-mcp"],
+        "autoApprove": [],
+        "env": {
+          "BLENDER_HOST": "host.docker.internal",
+          "BLENDER_PORT": "9876"
+        }
+      },
+      "kicad": {
+        "type": "stdio",
+        "command": "/a0/tools/kicad-mcp/.venv/bin/python",
+        "args": ["/a0/tools/kicad-mcp/main.py"],
+        "autoApprove": [],
+        "env": {
+          "KICAD_CLI_PATH":       "/usr/local/bin/kicad-cli-xvfb",
+          "KICAD_SYMBOL_LIBS":    "/kicad-support/symbols",
+          "KICAD_FOOTPRINT_LIBS": "/kicad-support/footprints"
+        }
+      },
+      "pcb-pipeline": {
+        "type": "stdio",
+        "command": "/a0/usr/skills-venv/bin/python3",
+        "args": ["/a0/usr/tools/pcb-pipeline/pcb_pipeline_mcp.py"],
+        "autoApprove": [],
+        "env": {
+          "KICAD_CLI_PATH":       "/usr/local/bin/kicad-cli-xvfb",
+          "KICAD_SYMBOL_LIBS":    "/kicad-support/symbols",
+          "KICAD_FOOTPRINT_LIBS": "/kicad-support/footprints",
+          "FREEROUTING_JAR":      "/a0/usr/freerouting/freerouting.jar",
+          "SKILLS_DIR":           "/a0/usr/skills"
+        }
+      }
+    }
+  }
+}

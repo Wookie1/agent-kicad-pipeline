@@ -1,0 +1,135 @@
+// ================================================================
+// PCB Agent fleet — model configuration reference
+// ================================================================
+// NOT loaded by Agent Zero. Reference only.
+// Actual per-profile config lives in each profile's settings.json.
+//
+// --- All ModelConfig fields ---
+// {
+//   "provider":        "ollama",      // required — see provider list below
+//   "name":            "model:tag",   // required — model identifier
+//   "api_base":        "",            // custom endpoint; "" = provider default
+//   "ctx_length":      0,             // context window tokens; 0 = provider default
+//   "vision":          false,         // true only for multimodal models
+//   "limit_requests":  0,             // requests/min rate limit; 0 = none
+//   "limit_input":     0,             // max input tokens; 0 = unlimited
+//   "limit_output":    0,             // max output tokens; 0 = unlimited
+//   "kwargs":          {}             // extra LiteLLM kwargs (see api_key note below)
+// }
+//
+// --- API keys — two options ---
+// Option A (recommended): environment variable
+//   Add to run_agent_zero.sh docker run command:
+//     -e OPENAI_API_KEY=sk-...
+//     -e ANTHROPIC_API_KEY=sk-ant-...
+//   LiteLLM picks these up automatically for standard providers.
+//
+// Option B: per-profile kwargs (only for the profile that needs it)
+//   In the profile's settings.json "kwargs" block:
+//     "kwargs": { "api_key": "sk-..." }
+//
+// --- api_base for Ollama in Docker ---
+//   Mac/Windows Docker Desktop: "http://host.docker.internal:11434"
+//   Linux Docker (host network):  "http://172.17.0.1:11434"
+//   Ollama inside container:      "http://localhost:11434"
+//
+// --- Valid provider IDs ---
+//   Chat:      ollama | openai | anthropic | google | groq | mistral |
+//              lm_studio | huggingface | azure | bedrock | deepseek |
+//              openrouter | xai | other (any OpenAI-compatible endpoint)
+//   Embedding: ollama | openai | google | mistral | lm_studio |
+//              huggingface | azure | bedrock | openrouter | other
+// ================================================================
+{
+  "pcb-orchestrator": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5:14b-instruct",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 32768,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-requirements": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5:7b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 16384,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-schematic": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5-coder:7b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 32768,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-layout": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5-coder:7b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 32768,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-drc-dfm": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5-coder:7b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 16384,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-export": {
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "qwen2.5:7b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 16384,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-vision-parts": {
+    // vision: true is required — enables the vision_load tool for this profile
+    "chat_model": {
+      "provider":   "ollama",
+      "name":       "minicpm-v:8b",
+      "api_base":   "http://host.docker.internal:11434",
+      "ctx_length": 8192,
+      "vision":     true,
+      "kwargs":     {}
+    }
+  },
+
+  "pcb-quality": {
+    // Cloud model example. Set OPENAI_API_KEY in run_agent_zero.sh,
+    // OR add "api_key": "sk-..." in kwargs if you prefer not to use env vars.
+    // To use a local model instead, change provider/name/api_base accordingly.
+    "chat_model": {
+      "provider":   "openai",
+      "name":       "gpt-4o",
+      "api_base":   "",
+      "ctx_length": 128000,
+      "vision":     false,
+      "kwargs":     {}
+    }
+  }
+}

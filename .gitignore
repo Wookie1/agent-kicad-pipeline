@@ -1,0 +1,110 @@
+# ── Secrets & local config ────────────────────────────────────────────────────
+settings.json
+*.env
+.env
+secrets.env
+*.secret
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+venv/
+env/
+ENV/
+.venv/
+.env/
+skills-venv/
+
+# ── KiCad generated / output files ───────────────────────────────────────────
+# Gerbers and drill
+*.gbr
+*.drl
+*.xln
+*.exc
+Gerbers/
+gerbers/
+fab/
+Fab/
+
+# BOM / pick-and-place
+*_bom.csv
+*_cpl.csv
+*_assembly.csv
+*-bom*.csv
+*-pos*.csv
+*_pos.csv
+
+# 3D export
+*.step
+*.stp
+*.wrl
+
+# PDF exports
+*_schematic.pdf
+*_pcb.pdf
+*_assembly.pdf
+*_assembly.svg
+
+# KiCad backups and auto-save
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.bak
+*.bak_v*
+_autosave-*
+*-rescue.kicad_sch
+*-rescue.dcm
+
+# Pipeline runtime state
+.pcb_pipeline_state.json
+schematic_config.json
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# ── Editor / IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ── Agent Zero runtime files ──────────────────────────────────────────────────
+agent-zero-data/
+*.jsonl
+
+# ── Claude Code local settings ────────────────────────────────────────────────
+.claude/
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.dockerenv

@@ -1,0 +1,5 @@
+# pcb-pipeline FastMCP server dependencies
+# Install into /a0/usr/skills-venv:
+#   /a0/usr/skills-venv/bin/pip install -r requirements.txt
+
+fastmcp>=0.4.0
