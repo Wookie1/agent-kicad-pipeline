@@ -19,15 +19,12 @@ agent-kicad-pipeline/
 │   ├── requirements.txt           fastmcp
 │   └── settings-snippet.json      MCP server config block for Agent Zero settings.json
 │
-├── pcb-design-agents/             Agent Zero sub-agent profiles
-│   ├── pcb-orchestrator/          Top-level router
-│   ├── pcb-requirements/          Requirements capture
-│   ├── pcb-schematic/             Schematic entry
-│   ├── pcb-layout/                PCB layout
-│   ├── pcb-drc-dfm/               DRC + design-for-manufacture review
-│   ├── pcb-export/                Manufacturing file export
-│   ├── pcb-vision-parts/          Vision-based part identification
-│   └── pcb-quality/               Final quality gate
+├── pcb-design-agents/             Agent Zero sub-agent profiles (5 consolidated agents)
+│   ├── pcb-orchestrator/          Router: gathers requirements, calls pcb_init, manages gates
+│   ├── pcb-schematic/             Calls pcb_schematic(components[], nets[]) — no coordinates
+│   ├── pcb-layout-drc/            pcb_layout → DRC loop → pcb_route → post-DRC (full cycle)
+│   ├── pcb-finalize/              Quality check + pcb_export (task: "quality" or "export")
+│   └── pcb-vision-parts/          Vision-based part/footprint identification (optional)
 │
 ├── kicad-project-init/            Skill: scaffold a new KiCad project
 ├── kicad-schematic-design/        Skill: schematic entry scripts
