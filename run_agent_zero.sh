@@ -171,7 +171,14 @@ docker exec agent-zero bash -c "
 docker exec agent-zero bash -c "
   DEST=/a0/usr/tools/pcb-pipeline
   SRC=/a0/usr/skills/pcb-pipeline
-  if [ ! -f \"\$DEST/pcb_pipeline_mcp.py\" ]; then
+  # Check ALL required helper scripts, not just the MCP server entry point.
+  # This catches partial deploys where the server exists but helpers are missing.
+  REQUIRED='pcb_pipeline_mcp.py schematic_builder.py batch_schematic.py sch_to_pcb_sync.py pcb_placer.py kicad_freerouter.py schematic_preflight.py generate_bom.py'
+  MISSING=0
+  for f in \$REQUIRED; do
+    [ ! -f \"\$DEST/\$f\" ] && MISSING=1 && break
+  done
+  if [ \"\$MISSING\" = \"1\" ]; then
     if [ -f \"\$SRC/pcb_pipeline_mcp.py\" ]; then
       mkdir -p \"\$DEST\"
       cp \"\$SRC\"/*.py \"\$DEST\"/
