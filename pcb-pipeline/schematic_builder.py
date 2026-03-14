@@ -46,13 +46,13 @@ from pathlib import Path
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 GRID       = 2.54          # mm — KiCad snapping grid
-COL_W      = 30.48         # mm — horizontal gap between component columns
-ROW_H      = 12.70         # mm — vertical gap between rows
-ORIGIN_X   = 38.10         # mm — top-left of component field
-ORIGIN_Y   = 38.10
-POWER_Y_ABOVE  = 20.32     # mm — Y for VCC / positive rails (above components)
-POWER_Y_BELOW  = 120.00    # mm — Y for GND symbols (below components)
-LABEL_OFFSET_X =  5.08     # mm — net label offset from component centre
+COL_W      = 50.80         # mm — horizontal gap between component columns (2 inches)
+ROW_H      = 25.40         # mm — vertical gap between rows (1 inch)
+ORIGIN_X   = 50.80         # mm — top-left of component field
+ORIGIN_Y   = 50.80
+POWER_Y_ABOVE  = 25.40     # mm — Y for VCC / positive rails (above components)
+POWER_Y_BELOW  = 160.00    # mm — Y for GND symbols (below components)
+LABEL_OFFSET_X = 10.16     # mm — net label offset from component centre
 
 POWER_RE = re.compile(
     r'^(?:VCC|VDD|V\d+V\d*|VBUS|VBAT|VMOT|V_\w+|\+\d+V\d*|'
@@ -361,19 +361,9 @@ def _make_schematic_config(components: list[dict], nets: list[dict]) -> dict:
             "angle":     comp.get("angle", 0),
         })
 
-    # Wires: connect each component's label-side to nearby net label
-    # (minimal horizontal stubs so the schematic reads well)
+    # No stub wires — net labels already show connectivity clearly.
+    # Stub wires don't connect to anything and add visual clutter.
     wires = []
-    for comp in components:
-        ref = comp["ref"]
-        x, y = positions.get(ref, (ORIGIN_X, ORIGIN_Y))
-        # stub wire to the right where signal net labels live
-        if any(
-            not _is_power_net(net["name"])
-            for net in nets
-            if any(p[0] == ref for p in net.get("pins", []))
-        ):
-            wires.append([[x, y], [_snap(x + LABEL_OFFSET_X), y]])
 
     config = {
         "symbols":       symbols,
@@ -407,6 +397,20 @@ def build(components: list[dict], nets: list[dict],
     project_dir  = Path(project_dir)
     project_name = project_dir.name
     warnings     = []
+
+    # ── Auto-annotate any unannotated refs (e.g. "R?" → "R1") ────────────────
+    counters: dict[str, int] = {}
+    annotated = []
+    for comp in components:
+        ref = comp.get("ref", "")
+        if not ref or "?" in ref:
+            prefix = re.sub(r'[\d?]+$', '', ref) or "X"
+            counters[prefix] = counters.get(prefix, 0) + 1
+            comp = dict(comp)
+            comp["ref"] = f"{prefix}{counters[prefix]}"
+            warnings.append(f"Auto-annotated unannotated ref '{ref}' → '{comp['ref']}'")
+        annotated.append(comp)
+    components = annotated
 
     # ── Validate inputs ───────────────────────────────────────────────────────
     refs = {c["ref"] for c in components}
