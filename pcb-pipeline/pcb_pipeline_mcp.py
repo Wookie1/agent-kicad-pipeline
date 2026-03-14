@@ -1094,6 +1094,56 @@ def pcb_search_web(
     return {"ok": True, "matches": matches, "downloaded": downloaded, "error": None}
 
 
+# ── Tool: pcb_thumbnail ──────────────────────────────────────────────────────
+
+@mcp.tool()
+def pcb_thumbnail(
+    project_dir: str,
+    layers: str = "F.Cu,B.Cu,Edge.Cuts,F.Silkscreen,F.Courtyard",
+) -> dict:
+    """
+    Export an SVG thumbnail of the current PCB layout using kicad-cli.
+    Use this instead of kicad-mcp's generate_pcb_thumbnail (which requires
+    an injected ctx parameter unavailable to agents).
+
+    Args:
+      project_dir: Path to the KiCad project directory
+      layers:      Comma-separated layer names to include in the SVG
+
+    Returns:
+      {"ok": bool, "svg_path": str, "warnings": [str]}
+    """
+    project_dir  = Path(project_dir)
+    project_name = project_dir.name
+    pcb_path     = project_dir / f"{project_name}.kicad_pcb"
+    warnings     = []
+
+    if not pcb_path.exists():
+        return {"ok": False, "svg_path": "",
+                "warnings": [f"PCB file not found: {pcb_path}"]}
+
+    thumb_dir = project_dir / "thumbnails"
+    thumb_dir.mkdir(exist_ok=True)
+    svg_path = thumb_dir / f"{project_name}_preview.svg"
+
+    cmd = [
+        KICAD_CLI, "pcb", "export", "svg",
+        "--output",  str(svg_path),
+        "--layers",  layers,
+        str(pcb_path),
+    ]
+    rc, out = _run(cmd, timeout=60, needs_display=True)
+
+    if rc != 0:
+        warnings.append(f"kicad-cli svg export returned rc={rc}: {out[:200]}")
+
+    if not svg_path.exists():
+        return {"ok": False, "svg_path": "", "warnings": warnings}
+
+    _write_state(project_dir, {"thumbnail_path": str(svg_path)})
+    return {"ok": True, "svg_path": str(svg_path), "warnings": warnings}
+
+
 # ── Tool: pcb_status ─────────────────────────────────────────────────────────
 
 @mcp.tool()

@@ -50,7 +50,12 @@ Override hints with any the orchestrator passes. Valid values:
 
 ### Step 3 — Generate thumbnail
 
-Call `generate_pcb_thumbnail` and include the image in your response.
+```json
+{ "tool_name": "pcb_thumbnail", "tool_args": { "project_dir": "/workspace/pcb/<project>" } }
+```
+
+⚠ Always use `pcb_thumbnail` (pcb-pipeline server). Never call `kicad.generate_pcb_thumbnail`
+— it has a broken `ctx` parameter agents cannot provide.
 
 ### Step 4 — Return to orchestrator
 
@@ -60,7 +65,7 @@ Return:
 - Board dimensions
 - Unrouted net count
 - DRC error count (must be 0)
-- Thumbnail image
+- Thumbnail SVG path (from `pcb_thumbnail` result)
 
 ---
 
