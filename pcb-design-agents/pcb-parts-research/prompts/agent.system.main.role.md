@@ -72,8 +72,11 @@ Apply the same pad count / pitch verification as Step 2a.
 
 Only if Steps 1, 2a, and 2b all failed or verification rejected:
 
-Load skill `kicad-create-custom-footprint` and create from datasheet dimensions.
-Document all dimensions and their datasheet source (page + table reference).
+1. Load skill `kicad-create-custom-symbol` and create the schematic symbol (pins, pin names,
+   pin numbers) from the datasheet pinout table.
+2. Load skill `kicad-create-custom-footprint` and create the PCB footprint (pad count, pitch,
+   courtyard) from the datasheet mechanical drawing.
+3. Document all dimensions and their datasheet source (page + table reference).
 
 Mark result as ✅ **CUSTOM (from datasheet)**.
 
