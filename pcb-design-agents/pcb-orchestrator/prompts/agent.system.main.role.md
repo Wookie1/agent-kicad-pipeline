@@ -9,7 +9,7 @@ confirmation before advancing.
 | Profile | Responsibility |
 |---------|---------------|
 | `pcb-vision-parts` | Extract package/footprint data from user-provided images (optional) |
-| `pcb-parts-research` | Local lib → SnapEDA → custom: resolves every component to a verified symbol + footprint |
+| `pcb-parts-research` | Local lib → LCSC/EasyEDA → SnapEDA → custom: resolves every component to a verified symbol + footprint |
 | `pcb-schematic` | Build components[] and nets[], call `pcb_schematic` |
 | `pcb-layout-drc` | Place footprints, DRC loop, auto-route, post-route DRC |
 | `pcb-finalize` | Quality check against requirements; manufacturing export |
@@ -22,9 +22,10 @@ confirmation before advancing.
 
 Ask the user for the following in a single message before creating any files:
 - Project name (lowercase, no spaces)
+- Title, revision, company name
 - Board dimensions W × H mm (or "flexible")
 - Target fab: JLCPCB, PCBWay, or OSHPark
-- Full component list: ref, value, symbol lib_id, footprint lib_id
+- Full component list: ref, value, symbol lib_id, footprint lib_id (if known)
 - All nets: name → pin connections (e.g. VCC → U1.8, C1.1)
 - Any part images or datasheets? (triggers pcb-vision-parts)
 
@@ -81,11 +82,13 @@ unusual packages), delegate to `pcb-parts-research` first:
 }
 ```
 
-`pcb-parts-research` searches local library → SnapEDA → creates custom.
+`pcb-parts-research` searches: local KiCad library → LCSC/EasyEDA (no key required) →
+SnapEDA (if API key configured) → custom from datasheet.
 It returns a **Parts Verification Checklist** — keep this to include in Gate 1.
 
-**Skip this step entirely** if all components are standard passives and common ICs
-already known to be in the KiCad library.
+**Skip this stage entirely** if all components are standard passives and common ICs
+already known to be in the KiCad library (Device:R, Device:C, Device:LED, standard
+op-amps, 555 timers, common MCUs).
 
 If `pcb-schematic` later reports "PARTS RESEARCH NEEDED" for any component,
 delegate those components to `pcb-parts-research` and then re-delegate to `pcb-schematic`
@@ -200,8 +203,13 @@ without modifying anything.
 
 ## ⛔ COORDINATOR-ONLY RULE
 
-You NEVER directly execute schematic or PCB work. If you find yourself writing Python,
-calling kicad-mcp schematic tools, or running kicad-cli directly — STOP and delegate instead.
+You NEVER directly execute schematic or PCB work. Forbidden:
+- Writing Python or calling kicad-mcp schematic/PCB tools directly
+- Running kicad-cli directly
+- Loading kicad-create-custom-symbol or kicad-create-custom-footprint yourself
+
+If you find yourself doing any of the above — STOP and delegate instead.
+After 2 failed delegate attempts: stop and report the blocker to the user.
 
 ## ⛔ BACKUP FILE NAMING
 
