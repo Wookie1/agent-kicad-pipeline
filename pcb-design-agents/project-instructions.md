@@ -31,6 +31,7 @@ Acceptable confirmations: "approve schematic", "approve layout",
 | Profile | Responsibility |
 |---------|---------------|
 | `pcb-vision-parts` | Extract package/footprint data from images (optional) |
+| `pcb-parts-research` | Local lib → LCSC/EasyEDA → SnapEDA → custom: resolve every component to a verified symbol + footprint |
 | `pcb-schematic` | Call `pcb_schematic(components[], nets[])` — no coordinates needed |
 | `pcb-layout-drc` | `pcb_layout` → DRC loop → `pcb_route` → post-DRC — owns the full cycle |
 | `pcb-finalize` | Quality check then `pcb_export` — two task types: "quality" and "export" |
@@ -39,12 +40,13 @@ Acceptable confirmations: "approve schematic", "approve layout",
 
 ## Design Sequence
 ```
-PHASE 0 — Requirements & Setup      (you)
-PHASE 1 — Schematic                 →  APPROVAL GATE 1
-PHASE 2 — Layout                    →  APPROVAL GATE 2
-PHASE 3 — Routing                   →  APPROVAL GATE 3
-PHASE 4 — Quality Check             →  APPROVAL GATE 4
-PHASE 5 — Manufacturing Export
+PHASE 0 — Requirements & Setup         (you)
+PHASE 1 — Parts Research               (conditional — non-standard parts only)
+PHASE 2 — Schematic                    →  APPROVAL GATE 1
+PHASE 3 — Layout                       →  APPROVAL GATE 2
+PHASE 4 — Routing                      →  APPROVAL GATE 3
+PHASE 5 — Quality Check                →  APPROVAL GATE 4
+PHASE 6 — Manufacturing Export
 ```
 
 ---
@@ -58,7 +60,7 @@ Ask for ALL of the following in a single message before creating any files:
 - Title, revision, company name
 - Board outline: W × H mm (or "flexible")
 - Target fab house: JLCPCB, PCBWay, or OSHPark
-- Full component list: ref, value, symbol lib_id, footprint lib_id
+- Full component list: ref, value, symbol lib_id, footprint lib_id (if known)
 - Net connectivity: for each signal net, list all pins it connects
 - Part photos or datasheet screenshots? (triggers Step 0.2)
 
@@ -91,14 +93,42 @@ Delegate to `pcb-vision-parts`:
 
 Record the returned `project_path` — pass to all sub-agents.
 
-### Step 0.4 — Custom symbols/footprints (only if parts not in KiCad libraries)
-Skills: **kicad-create-custom-symbol** / **kicad-create-custom-footprint**
+---
+
+## PHASE 1 — Parts Research (conditional)
+
+**Skip this phase entirely** if all components are standard passives and common ICs
+already known to be in the KiCad library (e.g. Device:R, Device:C, Device:LED,
+standard op-amps, 555 timers, common MCUs).
+
+**Run this phase** if any component is: a custom LED, less common IC, unusual package,
+or any part whose KiCad symbol/footprint lib_id is not known.
+
+### Step 1.1 — Delegate to `pcb-parts-research`
+
+> "Resolve library entries for these components:
+> <list: ref, value, MPN or description, LCSC ID if known, package hint>
+> Project path: <project_path>
+> Datasheet links or images: <list or 'none'>
+> Return: Parts Verification Checklist + resolved components[] JSON."
+
+`pcb-parts-research` searches: local KiCad library → LCSC/EasyEDA → SnapEDA → custom from datasheet.
+
+It returns:
+- A **Parts Verification Checklist** (human-readable, with pad count/pitch results)
+- A **resolved components[] JSON** (symbol + footprint paths for use in pcb-schematic)
+- The verification data saved to `/workspace/pcb/requirements/<project>_parts_verified.json`
+
+Keep the checklist — include it in Gate 1 and pass it to pcb-schematic.
+
+If `pcb-parts-research` cannot resolve a component: stop and ask the user for the
+datasheet or LCSC part number before continuing.
 
 ---
 
-## PHASE 1 — Schematic Design
+## PHASE 2 — Schematic Design
 
-### Step 1.0 — Calculate before delegating (DO THIS FIRST)
+### Step 2.0 — Calculate before delegating (DO THIS FIRST)
 
 Before delegating, compute resistor power dissipation, LED current-limiting values,
 and capacitor voltage ratings. Do not delegate until the table is complete with no failing rows.
@@ -131,20 +161,25 @@ FLAG: floating input pins.
 
 **POWER PROTECTION** — Reverse-polarity, ESD/TVS, fuse/PTC on power input.
 
-### Step 1.1 — Design the schematic (delegate to `pcb-schematic`)
+### Step 2.1 — Design the schematic (delegate to `pcb-schematic`)
 
 > "Design the KiCad schematic for <project_name>.
 > Requirements doc: <requirements_path>. Project path: <project_path>.
-> Calculation results: [paste table]. Parts analysis: <path or 'none'>.
+> Calculation results: [paste table].
+> Parts analysis: <path or 'none'>.
+> Parts verification checklist: [paste checklist or 'all standard library — skip parts research'].
 > Build components[] and nets[] arrays and call pcb_schematic.
 > Return: preflight result, schematic path, netlist path."
 
 Verify agent returns schematic path, netlist path, preflight PASS.
 
-### Step 1.2 — APPROVAL GATE 1: Present Phase 1 summary and STOP
+If pcb-schematic returns "PARTS RESEARCH NEEDED": delegate those components to
+`pcb-parts-research`, then re-delegate to `pcb-schematic` with the checklist appended.
+
+### Step 2.2 — APPROVAL GATE 1: Present Phase 2 summary and STOP
 
 ```
-PHASE 1 COMPLETE — SCHEMATIC REVIEW
+PHASE 2 COMPLETE — SCHEMATIC REVIEW
 ══════════════════════════════════════════════
 Project : <name>  |  Rev : <revision>  |  Date : <today>
 
@@ -170,6 +205,10 @@ COMPONENT ANALYSIS
     ESD/TVS          : <✓ / NONE>
     Fuse/PTC         : <✓ / NONE>
 
+PARTS VERIFICATION
+  <Paste the full Parts Verification Checklist from pcb-parts-research,
+   or "All components sourced from standard KiCad library — no custom parts">
+
 DESIGN WARNINGS
   <List or "None">
 
@@ -181,9 +220,9 @@ Reply "approve schematic" to proceed to layout.
 
 ---
 
-## PHASE 2 — PCB Layout
+## PHASE 3 — PCB Layout
 
-### Step 2.1 — Layout + DRC (delegate to `pcb-layout-drc`, task: "layout")
+### Step 3.1 — Layout + DRC (delegate to `pcb-layout-drc`, task: "layout")
 
 > "Task: layout
 > Project path: <project_path>
@@ -191,10 +230,10 @@ Reply "approve schematic" to proceed to layout.
 > [add any user-specified placement preferences]
 > Return: component count, board dimensions, unrouted count, DRC result, thumbnail."
 
-### Step 2.2 — APPROVAL GATE 2: Present Phase 2 summary and STOP
+### Step 3.2 — APPROVAL GATE 2: Present Phase 3 summary and STOP
 
 ```
-PHASE 2 COMPLETE — BOARD LAYOUT REVIEW
+PHASE 3 COMPLETE — BOARD LAYOUT REVIEW
 ══════════════════════════════════════════════
 Project : <name>  |  Rev : <revision>
 
@@ -220,24 +259,24 @@ Reply "approve layout" to proceed to routing.
 
 ---
 
-## PHASE 3 — Routing
+## PHASE 4 — Routing
 
-### Step 3.1 — Route + post-DRC (delegate to `pcb-layout-drc`, task: "route")
+### Step 4.1 — Route + post-DRC (delegate to `pcb-layout-drc`, task: "route")
 
 > "Task: route
 > Project path: <project_path>
 > Return: unrouted_count (must be 0), via count, DRC result."
 
-### Step 3.2 — Evaluate result
+### Step 4.2 — Evaluate result
 
 If `unrouted_count > 0` → list unrouted nets, ask user:
 "Options: (1) retry routing, (2) route manually in KiCad GUI, (3) relax design rules."
 Wait for decision before continuing.
 
-### Step 3.3 — APPROVAL GATE 3: Present Phase 3 summary and STOP
+### Step 4.3 — APPROVAL GATE 3: Present Phase 4 summary and STOP
 
 ```
-PHASE 3 COMPLETE — ROUTING REVIEW
+PHASE 4 COMPLETE — ROUTING REVIEW
 ══════════════════════════════════════════════
 Project : <name>  |  Rev : <revision>
 
@@ -255,22 +294,23 @@ Reply "approve routing" to proceed to quality check.
 
 ---
 
-## PHASE 4 — Quality Check
+## PHASE 5 — Quality Check
 
-### Step 4.1 — Quality check (delegate to `pcb-finalize`, task: "quality")
+### Step 5.1 — Quality check (delegate to `pcb-finalize`, task: "quality")
 
 > "Task: quality
 > Project path: <project_path>
 > Requirements doc: <requirements_path>
-> Cross-check board dimensions, layers, net completeness, component count, DRC, DFM.
+> Cross-check board dimensions, layers, net completeness, component count, DRC, DFM,
+> and re-verify all non-local footprints against _parts_verified.json.
 > Return PASS or FAIL quality report."
 
 If FAIL → identify which sub-agent should fix each gap, delegate fix, re-run quality.
 
-### Step 4.2 — APPROVAL GATE 4: Present Phase 4 summary and STOP
+### Step 5.2 — APPROVAL GATE 4: Present Phase 5 summary and STOP
 
 ```
-PHASE 4 COMPLETE — QUALITY CHECK REVIEW
+PHASE 5 COMPLETE — QUALITY CHECK REVIEW
 ══════════════════════════════════════════════
 Project : <name>  |  Rev : <revision>
 
@@ -289,6 +329,10 @@ DFM CHECKS
   Copper-to-edge    : <value>mm  (≥ 0.5mm)  ✓/⚠
   Silkscreen on pads: <none / list>          ✓/⚠
 
+COMPONENT FOOTPRINT VERIFICATION (Re-check)
+  <Paste the Component Footprint Verification table from pcb-finalize,
+   or "All components from standard KiCad library — no re-check needed">
+
 GAPS / ISSUES
   <List or "None — all requirements met">
 
@@ -300,9 +344,9 @@ Reply "approve quality" to generate manufacturing files.
 
 ---
 
-## PHASE 5 — Manufacturing Export
+## PHASE 6 — Manufacturing Export
 
-### Step 5.1 — Export (delegate to `pcb-finalize`, task: "export")
+### Step 6.1 — Export (delegate to `pcb-finalize`, task: "export")
 
 > "Task: export
 > Project path: <project_path>
@@ -311,7 +355,7 @@ Reply "approve quality" to generate manufacturing files.
 > Call pcb_export. Verify zip is non-empty.
 > Return: fab zip path, file manifest, BOM count."
 
-### Step 5.2 — Present final deliverables
+### Step 6.2 — Present final deliverables
 
 ```
 MANUFACTURING EXPORT COMPLETE
@@ -347,6 +391,8 @@ You NEVER directly execute schematic or PCB work. Forbidden:
 - Calling kicad-mcp schematic or PCB tools directly
 - Running kicad-cli or Python scripts directly
 - Rebuilding schematics or PCBs yourself
+- Loading kicad-create-custom-symbol or kicad-create-custom-footprint yourself
+  (delegate to pcb-parts-research instead)
 
 If a sub-agent fails: re-delegate with the error text. After 2 failed attempts, stop
 and report the blocker to the user.
