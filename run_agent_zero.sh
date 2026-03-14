@@ -19,7 +19,6 @@ docker run -d \
   -p 50001:80 \
   -v ~/agent-zero-data:/a0/usr \
   -v ~/agent-zero-pcb:/workspace/pcb \
-  -v ~/agent-zero-tools/kicad-mcp:/a0/tools/kicad-mcp \
   -v /Applications/KiCad/KiCad.app/Contents/SharedSupport:/kicad-support:ro \
   -e KICAD_CLI_PATH=/usr/local/bin/kicad-cli-xvfb \
   -e KICAD_SYMBOL_LIBS=/kicad-support/symbols \
@@ -52,20 +51,6 @@ docker exec -e DEBIAN_FRONTEND=noninteractive agent-zero bash -c "
 "
 
 # ---------------------------------------------------------------------------
-# Set up kicad-mcp virtual environment (uv)
-# ---------------------------------------------------------------------------
-docker exec agent-zero bash -c "cd /a0/tools/kicad-mcp && curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env && uv sync"
-
-# Fix typing.List → list for Python 3.10 compatibility in kicad-mcp
-docker exec agent-zero bash -c "
-  for f in /a0/tools/kicad-mcp/kicad_mcp/tools/schematic_tools.py \
-            /a0/tools/kicad-mcp/kicad_mcp/tools/pcb_layout_tools.py \
-            /a0/tools/kicad-mcp/kicad_mcp/tools/manufacturing_tools.py \
-            /a0/tools/kicad-mcp/kicad_mcp/tools/library_tools.py; do
-    [ -f \"\$f\" ] && sed -i 's/List\[List\[float\]\]/list[list[float]]/g; s/List\[str\]/list[str]/g' \"\$f\"
-  done
-"
-
 # ---------------------------------------------------------------------------
 # Install Java runtime for Freerouter (also skipped if already installed)
 # ---------------------------------------------------------------------------
@@ -86,8 +71,8 @@ docker exec -e DEBIAN_FRONTEND=noninteractive agent-zero bash -c "
 # operations (DRC, export, PCB update). A single persistent Xvfb on :99
 # handles ALL display needs:
 #   - kicad-cli calls (via the DISPLAY=:99 wrapper below)
-#   - kicad-mcp internal pcbnew calls (use DISPLAY=:99 directly)
 #   - kicad_freerouter.py pcbnew subprocess calls (pass DISPLAY=:99 in env)
+#   - sch_to_pcb_sync.py pcbnew calls (pass DISPLAY=:99 in env)
 #
 # Note: xvfb-run (per-command Xvfb) was tested but does NOT work for
 # kicad-cli pcb drc — the per-command Xvfb fails to connect before pcbnew
@@ -112,7 +97,7 @@ WRAPPER
 "
 
 # Start a persistent Xvfb on :99 — used by kicad-cli (via wrapper above),
-# kicad-mcp pcbnew calls, and kicad_freerouter.py pcbnew subprocesses.
+# pcb-pipeline pcbnew calls (sch_to_pcb_sync.py, kicad_freerouter.py).
 docker exec agent-zero bash -c "
   nohup Xvfb :99 -screen 0 1280x1024x24 >/tmp/xvfb.log 2>&1 &
   sleep 1
@@ -197,6 +182,5 @@ echo "  Skills venv : /a0/usr/skills-venv/bin/python3"
 echo "  PCB workspace: /workspace/pcb"
 echo "  kicad-cli   : /usr/bin/kicad-cli (Linux binary from Kali repos)"
 echo ""
-echo "NOTE: kicad-mcp is type=stdio — agent-zero spawns it on demand"
-echo "      using KICAD_CLI_PATH from ~/agent-zero-data/settings.json."
+echo "NOTE: pcb-pipeline is type=stdio — agent-zero spawns it on demand."
 echo "      No manual startup needed."
