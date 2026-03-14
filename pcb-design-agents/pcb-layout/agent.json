@@ -1,5 +1,0 @@
-{
-  "title": "PCB Layout Agent",
-  "description": "Configures board stackup, places footprints, and auto-routes traces using KiCad CLI and Freerouter. Handles copper zones and vias.",
-  "context": "Uses kicad-place-footprints and kicad-route-pcb skills. Freerouting JAR at /a0/usr/freerouting/freerouting.jar. PCB workspace: /workspace/pcb."
-}

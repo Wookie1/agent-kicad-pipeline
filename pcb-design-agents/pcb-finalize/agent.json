@@ -1,0 +1,5 @@
+{
+  "title": "PCB Quality Check & Export",
+  "description": "Performs requirements traceability quality check, then exports all manufacturing files. Uses pcb_drc, pcb_status, and pcb_export pipeline tools.",
+  "context": "PCB workspace: /workspace/pcb. Pipeline tools: pcb_drc, pcb_status, pcb_export."
+}

@@ -1,0 +1,5 @@
+{
+  "title": "PCB Layout, DRC & Routing",
+  "description": "Owns the full layout-to-route cycle: places footprints, iterates DRC to zero errors, auto-routes with Freerouter, and verifies post-route DRC. Uses pcb_layout, pcb_drc, and pcb_route pipeline tools.",
+  "context": "PCB workspace: /workspace/pcb. Pipeline tools: pcb_layout, pcb_drc, pcb_route, generate_pcb_thumbnail."
+}

@@ -1,5 +1,0 @@
-{
-  "title": "PCB Requirements Agent",
-  "description": "Converts natural-language PCB requests into structured requirements and constraints. Produces a requirements document the other PCB agents consume.",
-  "context": "Output a structured requirements document: board size, layer count, voltage rails, net list, component constraints, DRC rules, target fab."
-}
