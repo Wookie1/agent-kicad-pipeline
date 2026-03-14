@@ -152,12 +152,12 @@ docker exec agent-zero bash -c "
     echo 'Creating skills-venv...'
     python3 -m venv /a0/usr/skills-venv
     /a0/usr/skills-venv/bin/pip install --quiet --upgrade pip
-    /a0/usr/skills-venv/bin/pip install --quiet ezdxf svgwrite reportlab fastmcp
+    /a0/usr/skills-venv/bin/pip install --quiet ezdxf svgwrite reportlab fastmcp easyeda2kicad
     echo 'skills-venv created.'
   else
     echo 'skills-venv already exists.'
-    # Ensure fastmcp is present for pcb-pipeline MCP server
-    /a0/usr/skills-venv/bin/pip install --quiet fastmcp
+    # Ensure pipeline packages are present (fastmcp + easyeda2kicad for LCSC parts)
+    /a0/usr/skills-venv/bin/pip install --quiet fastmcp easyeda2kicad
   fi
 "
 

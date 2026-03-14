@@ -3,3 +3,4 @@
 #   /a0/usr/skills-venv/bin/pip install -r requirements.txt
 
 fastmcp>=0.4.0
+easyeda2kicad>=0.8.0   # LCSC/EasyEDA parts → KiCad (no API key required)

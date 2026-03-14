@@ -246,6 +246,105 @@ def pcb_schematic(
     return result
 
 
+# ── Tool: pcb_search_lcsc ────────────────────────────────────────────────────
+
+@mcp.tool()
+def pcb_search_lcsc(
+    lcsc_id: str,
+    project_dir: str,
+) -> dict:
+    """
+    Download KiCad symbol and footprint for an LCSC part number using
+    easyeda2kicad (no API key required — open access to LCSC/EasyEDA library).
+
+    Best for JLCPCB projects: LCSC part numbers ensure component availability
+    and match the assembly library exactly.
+
+    Args:
+      lcsc_id:     LCSC part number, e.g. "C123456" or "123456"
+      project_dir: Project directory; files saved to <project_dir>/lib/<lcsc_id>/
+
+    Returns:
+      {
+        "ok": bool,
+        "lcsc_id":        str,
+        "symbol_path":    str | null,   -- absolute path to .kicad_sym
+        "footprint_path": str | null,   -- absolute path to .kicad_mod
+        "pad_count":      int | null,
+        "pad_pitch_mm":   float | null,
+        "courtyard_mm":   {"w": float, "h": float} | null,
+        "source":         "easyeda_lcsc",
+        "error":          str | null
+      }
+    """
+    # Normalise: LCSC IDs always start with C
+    lcsc_id = lcsc_id.strip()
+    if not lcsc_id.upper().startswith("C"):
+        lcsc_id = f"C{lcsc_id}"
+    lcsc_id = lcsc_id.upper()
+
+    lib_dir = Path(project_dir) / "lib" / lcsc_id
+    lib_dir.mkdir(parents=True, exist_ok=True)
+
+    # easyeda2kicad is installed into skills-venv alongside fastmcp
+    e2k = Path(sys.executable).parent / "easyeda2kicad"
+    if not e2k.exists():
+        e2k = "easyeda2kicad"   # fallback: hope it's on PATH
+
+    cmd = [
+        str(e2k),
+        "--lcsc_id", lcsc_id,
+        "--output",  str(lib_dir / lcsc_id),   # e2k appends .kicad_sym / .pretty/
+        "--full",                               # symbol + footprint + 3D
+    ]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=120,
+            env={**os.environ, **DISPLAY_ENV},
+        )
+        if result.returncode != 0:
+            return {
+                "ok": False, "lcsc_id": lcsc_id,
+                "symbol_path": None, "footprint_path": None,
+                "pad_count": None, "pad_pitch_mm": None, "courtyard_mm": None,
+                "source": "easyeda_lcsc",
+                "error": f"easyeda2kicad failed (rc={result.returncode}): {result.stderr.strip()[:400]}",
+            }
+    except FileNotFoundError:
+        return {
+            "ok": False, "lcsc_id": lcsc_id,
+            "symbol_path": None, "footprint_path": None,
+            "pad_count": None, "pad_pitch_mm": None, "courtyard_mm": None,
+            "source": "easyeda_lcsc",
+            "error": "easyeda2kicad not found — run: pip install easyeda2kicad in skills-venv",
+        }
+    except Exception as e:
+        return {
+            "ok": False, "lcsc_id": lcsc_id,
+            "symbol_path": None, "footprint_path": None,
+            "pad_count": None, "pad_pitch_mm": None, "courtyard_mm": None,
+            "source": "easyeda_lcsc",
+            "error": str(e),
+        }
+
+    sym_files = sorted(lib_dir.rglob("*.kicad_sym"))
+    fp_files  = sorted(lib_dir.rglob("*.kicad_mod"))
+    sym_path  = str(sym_files[0]) if sym_files else None
+    fp_path   = str(fp_files[0])  if fp_files  else None
+
+    pad_info = _parse_footprint_metadata(fp_path) if fp_path else {}
+
+    return {
+        "ok":             bool(sym_path or fp_path),
+        "lcsc_id":        lcsc_id,
+        "symbol_path":    sym_path,
+        "footprint_path": fp_path,
+        "source":         "easyeda_lcsc",
+        "error":          None if (sym_path or fp_path) else "No output files found after easyeda2kicad run",
+        **pad_info,
+    }
+
+
 # ── Tool: pcb_search_lib ──────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -882,9 +981,10 @@ def pcb_search_web(
         return {
             "ok": False, "matches": [], "downloaded": None,
             "error": (
-                "SNAPEDA_API_KEY not set. "
-                "Add it to the pcb-pipeline env block in Agent Zero settings.json. "
-                "Get your key at snapeda.com → Account Settings → API."
+                "SNAPEDA_API_KEY not set — SnapEDA requires API access approval. "
+                "Use pcb_search_lcsc(lcsc_id, project_dir) instead: "
+                "it uses easyeda2kicad (no API key required) and is ideal for JLCPCB projects. "
+                "Ask the user for the LCSC part number (e.g. C123456) from lcsc.com or jlcpcb.com/parts."
             ),
         }
 
