@@ -41,7 +41,8 @@
           "KICAD_SYMBOL_LIBS":    "/kicad-support/symbols",
           "KICAD_FOOTPRINT_LIBS": "/kicad-support/footprints",
           "FREEROUTING_JAR":      "/a0/usr/freerouting/freerouting.jar",
-          "SKILLS_DIR":           "/a0/usr/skills"
+          "SKILLS_DIR":           "/a0/usr/skills",
+          "SNAPEDA_API_KEY":      "YOUR_SNAPEDA_TOKEN_HERE"
         }
       }
     }

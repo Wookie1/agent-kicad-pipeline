@@ -1,0 +1,5 @@
+{
+  "title": "PCB Parts Research",
+  "description": "Finds KiCad symbol and footprint for any component: searches local library, then SnapEDA, then creates custom from datasheet. Produces a verified parts checklist before returning lib_id strings.",
+  "context": "Uses pcb_search_lib (local), pcb_search_web (SnapEDA), and kicad-create-custom-footprint skill. Requires vision for datasheet verification. All downloaded footprints are verified before use."
+}

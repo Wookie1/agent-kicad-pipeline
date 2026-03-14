@@ -8,7 +8,8 @@ confirmation before advancing.
 
 | Profile | Responsibility |
 |---------|---------------|
-| `pcb-vision-parts` | Extract package/footprint data from images (optional) |
+| `pcb-vision-parts` | Extract package/footprint data from user-provided images (optional) |
+| `pcb-parts-research` | Local lib → SnapEDA → custom: resolves every component to a verified symbol + footprint |
 | `pcb-schematic` | Build components[] and nets[], call `pcb_schematic` |
 | `pcb-layout-drc` | Place footprints, DRC loop, auto-route, post-route DRC |
 | `pcb-finalize` | Quality check against requirements; manufacturing export |
@@ -63,28 +64,58 @@ Record the returned `project_path` — pass it to all sub-agents.
 
 ---
 
-### Stage 1 — Schematic (delegate to `pcb-schematic`)
+### Stage 1 — Parts Research (delegate to `pcb-parts-research` if needed)
 
-Before delegating, compute resistor/LED values and power dissipation (see design analysis
-rules in project instructions). Pass your calculation results to the agent.
+Before delegating to pcb-schematic, check whether all components have known
+KiCad symbol + footprint lib_ids. If any are non-standard (custom LEDs, less common ICs,
+unusual packages), delegate to `pcb-parts-research` first:
 
 ```json
 {
   "tool_name": "call_subordinate",
   "tool_args": {
-    "message": "Design the KiCad schematic for <name>.\nRequirements doc: <requirements_path>\nProject path: <project_path>\nCalculation results: [paste table]\nParts analysis: <path or 'none'>\nBuild components[] and nets[] arrays and call pcb_schematic.\nReturn: preflight result, schematic path, netlist path.",
+    "message": "Resolve library entries for these components:\n<list: ref, value, MPN, package hint>\nProject path: <project_path>\nDatasheet links or images: <list or 'none'>\nReturn: Parts Verification Checklist + resolved components[] JSON.",
+    "profile": "pcb-parts-research",
+    "reset": "true"
+  }
+}
+```
+
+`pcb-parts-research` searches local library → SnapEDA → creates custom.
+It returns a **Parts Verification Checklist** — keep this to include in Gate 1.
+
+**Skip this step entirely** if all components are standard passives and common ICs
+already known to be in the KiCad library.
+
+If `pcb-schematic` later reports "PARTS RESEARCH NEEDED" for any component,
+delegate those components to `pcb-parts-research` and then re-delegate to `pcb-schematic`
+with the checklist appended.
+
+---
+
+### Stage 2 — Schematic (delegate to `pcb-schematic`)
+
+Before delegating, compute resistor/LED values and power dissipation (see design analysis
+rules in project instructions). Pass your calculation results and any parts checklist.
+
+```json
+{
+  "tool_name": "call_subordinate",
+  "tool_args": {
+    "message": "Design the KiCad schematic for <name>.\nRequirements doc: <requirements_path>\nProject path: <project_path>\nCalculation results: [paste table]\nParts analysis: <path or 'none'>\nParts verification checklist: [paste checklist or 'all standard library']\nBuild components[] and nets[] arrays and call pcb_schematic.\nReturn: preflight result, schematic path, netlist path.",
     "profile": "pcb-schematic",
     "reset": "true"
   }
 }
 ```
 
-After agent returns: present **APPROVAL GATE 1** with schematic stats and design analysis.
-**STOP. Wait for user approval before Stage 2.**
+After agent returns: present **APPROVAL GATE 1** with schematic stats, design analysis,
+and parts verification checklist.
+**STOP. Wait for user approval before Stage 3.**
 
 ---
 
-### Stage 2 — Layout (delegate to `pcb-layout-drc`, task: "layout")
+### Stage 3 — Layout (delegate to `pcb-layout-drc`, task: "layout")
 
 ```json
 {
@@ -98,11 +129,11 @@ After agent returns: present **APPROVAL GATE 1** with schematic stats and design
 ```
 
 After agent returns: present **APPROVAL GATE 2** with board stats and thumbnail.
-**STOP. Wait for user approval before Stage 3.**
+**STOP. Wait for user approval before Stage 4.**
 
 ---
 
-### Stage 3 — Routing (delegate to `pcb-layout-drc`, task: "route")
+### Stage 4 — Routing (delegate to `pcb-layout-drc`, task: "route")
 
 ```json
 {
@@ -116,11 +147,11 @@ After agent returns: present **APPROVAL GATE 2** with board stats and thumbnail.
 ```
 
 After agent returns: present **APPROVAL GATE 3** with routing stats.
-**STOP. Wait for user approval before Stage 4.**
+**STOP. Wait for user approval before Stage 5.**
 
 ---
 
-### Stage 4 — Quality Check (delegate to `pcb-finalize`, task: "quality")
+### Stage 5 — Quality Check (delegate to `pcb-finalize`, task: "quality")
 
 ```json
 {
@@ -134,11 +165,11 @@ After agent returns: present **APPROVAL GATE 3** with routing stats.
 ```
 
 After agent returns: present **APPROVAL GATE 4** with quality report.
-**STOP. Wait for user approval before Stage 5.**
+**STOP. Wait for user approval before Stage 6.**
 
 ---
 
-### Stage 5 — Export (delegate to `pcb-finalize`, task: "export")
+### Stage 6 — Export (delegate to `pcb-finalize`, task: "export")
 
 ```json
 {

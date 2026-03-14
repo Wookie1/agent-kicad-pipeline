@@ -26,6 +26,8 @@ Environment variables (set in docker run -e and settings.json mcp_servers env):
                     Default: /a0/usr/freerouting/freerouting.jar
   SKILLS_DIR        Root of skills directory inside Docker
                     Default: /a0/usr/skills
+  SNAPEDA_API_KEY   SnapEDA API token for pcb_search_web (get from snapeda.com → Account → API)
+                    Default: "" (pcb_search_web returns error if not set)
 
 Run:
   /a0/usr/skills-venv/bin/python3 /a0/usr/tools/pcb-pipeline/pcb_pipeline_mcp.py
@@ -50,6 +52,8 @@ FP_LIBS_DIR      = Path(os.environ.get("KICAD_FOOTPRINT_LIBS", "/kicad-support/f
 FREEROUTING_JAR  = os.environ.get("FREEROUTING_JAR",
                                    "/a0/usr/freerouting/freerouting.jar")
 SKILLS_DIR       = Path(os.environ.get("SKILLS_DIR", "/a0/usr/skills"))
+SNAPEDA_API_KEY  = os.environ.get("SNAPEDA_API_KEY", "")
+SNAPEDA_BASE     = "https://www.snapeda.com/api/v1"
 TOOLS_DIR        = Path(__file__).parent  # same dir as this script when deployed
 DISPLAY_ENV      = {"DISPLAY": ":99"}
 STATE_FILE       = ".pcb_pipeline_state.json"
@@ -781,6 +785,213 @@ def _reformat_jlcpcb_cpl(cpl_path: Path):
         cpl_path.write_text(text, "utf-8")
     except Exception:
         pass
+
+
+# ── Helper: footprint metadata parser ────────────────────────────────────────
+
+def _parse_footprint_metadata(fp_path: str) -> dict:
+    """Parse pad count, minimum pitch, and courtyard dims from a .kicad_mod file."""
+    try:
+        text = Path(fp_path).read_text("utf-8")
+
+        # Pad count (unique pad numbers)
+        pads = re.findall(r'\(pad\s+"?(\d+)"?\s+', text)
+        pad_count = len(set(pads))
+
+        # Pad XY positions → estimate minimum pitch
+        pad_xy = re.findall(
+            r'\(pad\s+\S+\s+\S+\s+\S+\s+\(at\s+([-\d.]+)\s+([-\d.]+)', text)
+        pitch = None
+        if len(pad_xy) >= 2:
+            xs = sorted(set(float(x) for x, _ in pad_xy))
+            ys = sorted(set(float(y) for _, y in pad_xy))
+            gaps = (
+                [round(xs[i+1] - xs[i], 4) for i in range(len(xs)-1)] +
+                [round(ys[i+1] - ys[i], 4) for i in range(len(ys)-1)]
+            )
+            valid = [g for g in gaps if g > 0.05]
+            pitch = min(valid) if valid else None
+
+        # Courtyard bounding box
+        crtyd = re.search(r'F\.Courtyard(.*?)(?=\n\s*\(gr_|\n\s*\(pad|\Z)',
+                          text, re.DOTALL)
+        cw = ch = None
+        if crtyd:
+            xy_vals = re.findall(r'\(xy\s+([-\d.]+)\s+([-\d.]+)\)', crtyd.group(1))
+            if xy_vals:
+                xs_c = [float(x) for x, _ in xy_vals]
+                ys_c = [float(y) for _, y in xy_vals]
+                cw = round(max(xs_c) - min(xs_c), 3)
+                ch = round(max(ys_c) - min(ys_c), 3)
+
+        return {
+            "pad_count":    pad_count,
+            "pad_pitch_mm": pitch,
+            "courtyard_mm": {"w": cw, "h": ch} if cw and ch else None,
+        }
+    except Exception:
+        return {"pad_count": None, "pad_pitch_mm": None, "courtyard_mm": None}
+
+
+# ── Tool: pcb_search_web ──────────────────────────────────────────────────────
+
+@mcp.tool()
+def pcb_search_web(
+    query: str,
+    mpn: str = "",
+    project_dir: str = "",
+    max_results: int = 5,
+) -> dict:
+    """
+    Search SnapEDA for a KiCad symbol and footprint, optionally downloading
+    the best match into <project_dir>/lib/<mpn>/.
+
+    Requires SNAPEDA_API_KEY environment variable (get from snapeda.com → Account → API).
+
+    Args:
+      query:       Human-readable description, e.g. "TPS62130 buck converter"
+      mpn:         Exact manufacturer part number if known (improves match quality)
+      project_dir: If provided, download the best match's KiCad files here
+      max_results: How many search results to return (default 5)
+
+    Returns:
+      {
+        "ok": bool,
+        "matches": [{"mpn", "manufacturer", "description",
+                     "has_symbol", "has_footprint", "datasheet_url", "snap_uid"}],
+        "downloaded": {
+          "symbol_path":    str | null,   -- absolute path to .kicad_sym
+          "footprint_path": str | null,   -- absolute path to .kicad_mod
+          "pad_count":      int | null,
+          "pad_pitch_mm":   float | null,
+          "courtyard_mm":   {"w": float, "h": float} | null,
+          "mpn":            str,
+          "manufacturer":   str,
+          "datasheet_url":  str,
+          "source":         "snapeda"
+        } | null,
+        "error": str | null
+      }
+    """
+    import urllib.request
+    import urllib.parse
+    import urllib.error
+    import zipfile
+
+    if not SNAPEDA_API_KEY:
+        return {
+            "ok": False, "matches": [], "downloaded": None,
+            "error": (
+                "SNAPEDA_API_KEY not set. "
+                "Add it to the pcb-pipeline env block in Agent Zero settings.json. "
+                "Get your key at snapeda.com → Account Settings → API."
+            ),
+        }
+
+    headers = {
+        "Authorization": f"Token {SNAPEDA_API_KEY}",
+        "Accept":        "application/json",
+    }
+
+    # ── 1. Search ─────────────────────────────────────────────────────────────
+    search_term = mpn if mpn else query
+    search_url = (
+        f"{SNAPEDA_BASE}/parts/search/"
+        f"?q={urllib.parse.quote(search_term)}&page_size={max_results}"
+    )
+    try:
+        req = urllib.request.Request(search_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "matches": [], "downloaded": None,
+                "error": f"SnapEDA API error {e.code}: {e.reason}"}
+    except Exception as e:
+        return {"ok": False, "matches": [], "downloaded": None,
+                "error": f"SnapEDA search failed: {e}"}
+
+    matches = []
+    for part in data.get("results", []):
+        mfr = part.get("manufacturer", "")
+        if isinstance(mfr, dict):
+            mfr = mfr.get("name", "")
+        matches.append({
+            "mpn":          part.get("mpn") or part.get("name", ""),
+            "manufacturer": mfr,
+            "description":  part.get("description", ""),
+            "has_symbol":   bool(part.get("has_symbol")),
+            "has_footprint": bool(part.get("has_footprint")),
+            "datasheet_url": part.get("datasheet", ""),
+            "snap_uid":     str(part.get("snap_uid") or part.get("id", "")),
+        })
+
+    if not matches:
+        return {"ok": True, "matches": [], "downloaded": None,
+                "error": "No results found on SnapEDA for this query"}
+
+    # ── 2. Download best match if project_dir given ───────────────────────────
+    downloaded = None
+    if project_dir:
+        best = next(
+            (m for m in matches if m["has_symbol"] and m["has_footprint"]), None
+        )
+        if best and best["snap_uid"]:
+            safe_mpn = re.sub(r'[^\w\-]', '_', best["mpn"])
+            lib_dir  = Path(project_dir) / "lib" / safe_mpn
+            lib_dir.mkdir(parents=True, exist_ok=True)
+
+            dl_url = f"{SNAPEDA_BASE}/parts/{best['snap_uid']}/download/?file_type=kicad"
+            try:
+                req = urllib.request.Request(dl_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    content = resp.read()
+
+                zip_path = lib_dir / "snapeda.zip"
+                zip_path.write_bytes(content)
+                with zipfile.ZipFile(zip_path) as z:
+                    z.extractall(lib_dir)
+                zip_path.unlink(missing_ok=True)
+
+                sym_files = sorted(lib_dir.rglob("*.kicad_sym"))
+                fp_files  = sorted(lib_dir.rglob("*.kicad_mod"))
+                sym_path  = str(sym_files[0]) if sym_files else None
+                fp_path   = str(fp_files[0])  if fp_files  else None
+
+                pad_info = _parse_footprint_metadata(fp_path) if fp_path else {}
+
+                downloaded = {
+                    "symbol_path":   sym_path,
+                    "footprint_path": fp_path,
+                    "mpn":           best["mpn"],
+                    "manufacturer":  best["manufacturer"],
+                    "datasheet_url": best.get("datasheet_url", ""),
+                    "source":        "snapeda",
+                    **pad_info,
+                }
+
+            except zipfile.BadZipFile:
+                # SnapEDA sometimes returns individual files, not a zip
+                # Try saving directly as .kicad_sym / .kicad_mod
+                content_str = content.decode("utf-8", errors="replace")
+                if "(symbol " in content_str:
+                    sym_path = str(lib_dir / f"{safe_mpn}.kicad_sym")
+                    Path(sym_path).write_text(content_str, "utf-8")
+                    downloaded = {
+                        "symbol_path": sym_path, "footprint_path": None,
+                        "mpn": best["mpn"], "manufacturer": best["manufacturer"],
+                        "datasheet_url": best.get("datasheet_url", ""),
+                        "source": "snapeda",
+                        "pad_count": None, "pad_pitch_mm": None, "courtyard_mm": None,
+                    }
+                else:
+                    downloaded = {
+                        "error": "SnapEDA returned an unrecognised file format",
+                        "source": "snapeda",
+                    }
+            except Exception as e:
+                downloaded = {"error": f"Download failed: {e}", "source": "snapeda"}
+
+    return {"ok": True, "matches": matches, "downloaded": downloaded, "error": None}
 
 
 # ── Tool: pcb_status ─────────────────────────────────────────────────────────
